@@ -78,6 +78,7 @@ enum stop_cp_reason {
 	STOP_CP_REASON_UPDATE_INODE,
 	STOP_CP_REASON_FLUSH_FAIL,
 	STOP_CP_REASON_NO_SEGMENT,
+	STOP_CP_REASON_CORRUPTED_NID,
 	STOP_CP_REASON_MAX,
 };
 
@@ -421,9 +422,6 @@ struct f2fs_sit_entry {
 struct f2fs_sit_block {
 	struct f2fs_sit_entry entries[SIT_ENTRY_PER_BLOCK];
 } __packed;
-
-#define NAT_CACHED_ENTRY	1
-#define NAT_JOURNAL_ENTRY	2
 
 /*
  * For segment summary

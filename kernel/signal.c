@@ -62,6 +62,8 @@
 #undef CREATE_TRACE_POINTS
 #include <trace/hooks/signal.h>
 #include <trace/hooks/dtask.h>
+
+EXPORT_TRACEPOINT_SYMBOL_GPL(signal_generate);
 /*
  * SLAB caches for signal bits.
  */
@@ -1393,6 +1395,7 @@ int zap_other_threads(struct task_struct *p)
 	int count = 0;
 
 	p->signal->group_stop_count = 0;
+	task_clear_jobctl_pending(p, JOBCTL_PENDING_MASK);
 
 	while_each_thread(p, t) {
 		task_clear_jobctl_pending(t, JOBCTL_PENDING_MASK);

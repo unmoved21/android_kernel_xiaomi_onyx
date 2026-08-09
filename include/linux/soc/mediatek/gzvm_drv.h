@@ -13,6 +13,7 @@
 #include <linux/gzvm.h>
 #include <linux/srcu.h>
 #include <linux/rbtree.h>
+#include <linux/kref.h>
 
 /* GZVM version encode */
 #define GZVM_DRV_MAJOR_VERSION		16
@@ -177,6 +178,7 @@ struct gzvm_vm_stat {
  * page mailbox at the same time
  * @stat: information for VM memory statistics
  * @debug_dir: debugfs directory node for VM memory statistics
+ * @kref: reference counter between vm and vcpu when destroy happened
  */
 struct gzvm {
 	struct gzvm_driver *gzvm_drv;
@@ -212,6 +214,7 @@ struct gzvm {
 
 	struct gzvm_vm_stat stat;
 	struct dentry *debug_dir;
+	struct kref kref;
 };
 
 long gzvm_dev_ioctl_check_extension(struct gzvm *gzvm, unsigned long args);
@@ -240,6 +243,8 @@ int gzvm_arch_map_guest(u16 vm_id, int memslot_id, u64 pfn, u64 gfn,
 			u64 nr_pages);
 int gzvm_arch_map_guest_block(u16 vm_id, int memslot_id, u64 gfn, u64 nr_pages);
 int gzvm_arch_get_statistics(struct gzvm *gzvm);
+int gzvm_vm_internal_arch_enable_cap(struct gzvm *gzvm,
+				     struct gzvm_enable_cap *cap);
 int gzvm_vm_ioctl_arch_enable_cap(struct gzvm *gzvm,
 				  struct gzvm_enable_cap *cap,
 				  void __user *argp);
@@ -290,6 +295,7 @@ int gzvm_arch_memregion_purpose(struct gzvm *gzvm,
 int gzvm_arch_set_dtb_config(struct gzvm *gzvm, struct gzvm_dtb_config *args);
 
 int gzvm_init_ioeventfd(struct gzvm *gzvm);
+void gzvm_vm_ioeventfd_release(struct gzvm *gzvm);
 int gzvm_ioeventfd(struct gzvm *gzvm, struct gzvm_ioeventfd *args);
 bool gzvm_ioevent_write(struct gzvm_vcpu *vcpu, __u64 addr, int len,
 			const void *val);
@@ -297,5 +303,7 @@ void eventfd_ctx_do_read(struct eventfd_ctx *ctx, __u64 *cnt);
 struct vm_area_struct *vma_lookup(struct mm_struct *mm, unsigned long addr);
 void add_wait_queue_priority(struct wait_queue_head *wq_head,
 			     struct wait_queue_entry *wq_entry);
+void gzvm_vm_put(struct gzvm *gzvm);
+void gzvm_vm_get(struct gzvm *gzvm);
 
 #endif /* __GZVM_DRV_H__ */
