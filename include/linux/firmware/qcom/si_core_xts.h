@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _LINUX_SI_CORE_XTS_H__
 #define _LINUX_SI_CORE_XTS_H__
 
+#include <linux/dma-buf.h>
 #include <linux/firmware/qcom/si_object.h>
 
 struct si_object *init_si_mem_object_user(struct dma_buf *dma_buf,

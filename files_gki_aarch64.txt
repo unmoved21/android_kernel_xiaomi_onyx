@@ -660,6 +660,7 @@ drivers/android/dbitmap.h
 drivers/android/debug_kinfo.c
 drivers/android/debug_kinfo.h
 drivers/android/vendor_hooks.c
+drivers/android/wrapfd.c
 drivers/base/arch_topology.c
 drivers/base/attribute_container.c
 drivers/base/auxiliary.c
@@ -833,6 +834,9 @@ drivers/clocksource/timer-probe.c
 drivers/clocksource/timer-sp.h
 drivers/clocksource/timer-sp804.c
 drivers/clocksource/timer-sun4i.c
+drivers/connector/cn_proc.c
+drivers/connector/cn_queue.c
+drivers/connector/connector.c
 drivers/cpufreq/cpufreq.c
 drivers/cpufreq/cpufreq_conservative.c
 drivers/cpufreq/cpufreq_governor.c
@@ -2920,6 +2924,7 @@ include/linux/compiler_types.h
 include/linux/completion.h
 include/linux/component.h
 include/linux/configfs.h
+include/linux/connector.h
 include/linux/console.h
 include/linux/console_struct.h
 include/linux/consolemap.h
@@ -3509,6 +3514,7 @@ include/linux/page_pinner.h
 include/linux/page_ref.h
 include/linux/page_reporting.h
 include/linux/page_size_compat.h
+include/linux/page_size_compat_defs.h
 include/linux/page_table_check.h
 include/linux/pageblock-flags.h
 include/linux/pagemap.h
@@ -4015,6 +4021,7 @@ include/linux/win_minmax.h
 include/linux/wireless.h
 include/linux/workqueue.h
 include/linux/workqueue_api.h
+include/linux/wrapfd.h
 include/linux/writeback.h
 include/linux/ww_mutex.h
 include/linux/wwan.h
@@ -4301,8 +4308,6 @@ include/net/tcx.h
 include/net/timewait_sock.h
 include/net/tipc.h
 include/net/tls.h
-include/net/tls_prot.h
-include/net/tls_toe.h
 include/net/transp_v6.h
 include/net/tso.h
 include/net/udp.h
@@ -4638,6 +4643,7 @@ include/uapi/linux/cfm_bridge.h
 include/uapi/linux/cgroupstats.h
 include/uapi/linux/close_range.h
 include/uapi/linux/cn_proc.h
+include/uapi/linux/connector.h
 include/uapi/linux/const.h
 include/uapi/linux/cramfs_fs.h
 include/uapi/linux/cryptouser.h
@@ -5038,6 +5044,7 @@ include/uapi/linux/watch_queue.h
 include/uapi/linux/watchdog.h
 include/uapi/linux/wireguard.h
 include/uapi/linux/wireless.h
+include/uapi/linux/wrapfd.h
 include/uapi/linux/wwan.h
 include/uapi/linux/xattr.h
 include/uapi/linux/xfrm.h
@@ -5841,9 +5848,6 @@ mm/maccess.c
 mm/madvise.c
 mm/memblock.c
 mm/memcontrol.c
-mm/memfd-ashmem-shim-internal.h
-mm/memfd-ashmem-shim.c
-mm/memfd-ashmem-shim.h
 mm/memfd.c
 mm/memory.c
 mm/memory_hotplug.c
@@ -6482,7 +6486,6 @@ net/sched/sch_prio.c
 net/sched/sch_sfq.c
 net/sched/sch_tbf.c
 net/socket.c
-net/strparser/strparser.c
 net/sysctl_net.c
 net/tipc/addr.c
 net/tipc/addr.h
@@ -6528,13 +6531,6 @@ net/tipc/trace.c
 net/tipc/trace.h
 net/tipc/udp_media.c
 net/tipc/udp_media.h
-net/tls/tls.h
-net/tls/tls_main.c
-net/tls/tls_proc.c
-net/tls/tls_strp.c
-net/tls/tls_sw.c
-net/tls/trace.c
-net/tls/trace.h
 net/unix/af_unix.c
 net/unix/garbage.c
 net/unix/sysctl_net_unix.c
@@ -6659,6 +6655,9 @@ security/keys/sysctl.c
 security/keys/user_defined.c
 security/lsm_audit.c
 security/min_addr.c
+security/safesetid/lsm.c
+security/safesetid/lsm.h
+security/safesetid/securityfs.c
 security/security.c
 security/selinux/avc.c
 security/selinux/hooks.c

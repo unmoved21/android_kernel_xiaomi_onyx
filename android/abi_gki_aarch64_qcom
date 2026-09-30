@@ -65,6 +65,7 @@
   bitmap_parselist
   bitmap_print_to_pagebuf
   bitmap_release_region
+  __bitmap_replace
   __bitmap_set
   bitmap_zalloc
   __blk_alloc_disk
@@ -383,11 +384,13 @@
   devm_extcon_dev_unregister
   devm_free_irq
   devm_fwnode_pwm_get
+  devm_gpiochip_add_data_with_key
   devm_gpiod_get_optional
   devm_gpio_request
   devm_gpio_request_one
   devm_hwrng_register
   devm_hwspin_lock_register
+  devm_hwspin_lock_request_specific
   devm_iio_channel_get
   devm_iio_device_alloc
   __devm_iio_device_register
@@ -867,6 +870,7 @@
   i2c_del_driver
   i2c_find_device_by_fwnode
   i2c_get_dma_safe_msg_buf
+  i2c_get_match_data
   i2c_put_dma_safe_msg_buf
   i2c_register_driver
   i2c_smbus_read_byte_data
@@ -1644,8 +1648,10 @@
   reclaim_shmem_address_space
   refcount_dec_not_one
   refcount_warn_saturate
+  regcache_cache_only
   regcache_mark_dirty
   regcache_sync
+  regcache_sync_region
   __register_blkdev
   __register_chrdev
   register_chrdev_region

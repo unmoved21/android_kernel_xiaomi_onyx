@@ -8,6 +8,7 @@
 
 #include <linux/kref.h>
 #include <linux/completion.h>
+#include <linux/qtee_shmbridge.h>
 
 /* Primordial Object */
 

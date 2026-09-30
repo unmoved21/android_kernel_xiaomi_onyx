@@ -182,11 +182,8 @@ static inline void err_to_qtee_err(struct qtee_callback *cb_msg, int err)
 
 		break;
 	case -EBADF:
-		cb_msg->result = OBJECT_ERROR_UNAVAIL;
-
-		break;
 	case -EINVAL:
-		cb_msg->result = OBJECT_ERROR_INVALID;
+		cb_msg->result = OBJECT_ERROR_UNAVAIL;
 
 		break;
 	default:

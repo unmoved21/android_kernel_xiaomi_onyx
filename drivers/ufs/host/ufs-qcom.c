@@ -29,10 +29,8 @@
 #include <trace/hooks/ufshcd.h>
 #include <linux/ipc_logging.h>
 #include <soc/qcom/minidump.h>
-#if IS_ENABLED(CONFIG_QTI_CRYPTO_FDE)
 #include <linux/crypto-qti-common.h>
 #include <linux/of_platform.h>
-#endif
 #if IS_ENABLED(CONFIG_SCHED_WALT)
 #include <linux/sched/walt.h>
 #endif
@@ -623,6 +621,17 @@ static int ufs_qcom_ice_init(struct ufs_qcom_host *host)
 
 	if (IS_ERR_OR_NULL(ice))
 		return PTR_ERR_OR_ZERO(ice);
+
+	if (IS_ENABLED(CONFIG_QTI_CRYPTO_FDE)) {
+		int err;
+
+		err = crypto_qti_ice_init_fde_node(dev);
+
+		if (err) {
+			dev_err(dev, "Failed to add fde node, err=%d\n", err);
+			return err;
+		}
+	}
 
 	host->ice = ice;
 	hba->caps |= UFSHCD_CAP_CRYPTO;
@@ -6200,6 +6209,30 @@ static void ufs_qcom_update_sdev(void *param, struct scsi_device *sdev)
 /*
  * Refer: common/include/trace/hooks/ufshcd.h for available hooks
  */
+static void ufs_qcom_hook_prepare_command(void *param, struct ufs_hba *hba,
+					   struct request *rq, struct ufshcd_lrb *lrbp, int *err)
+{
+	if (IS_ENABLED(CONFIG_QTI_CRYPTO_FDE)) {
+		struct ice_data_setting setting;
+
+		if (!rq->crypt_keyslot) {
+			if (!crypto_qti_ice_config_start(rq, &setting)) {
+				if ((rq_data_dir(rq) == WRITE) ? setting.encr_bypass :
+						setting.decr_bypass) {
+					lrbp->crypto_key_slot = -1;
+				} else {
+					lrbp->crypto_key_slot = setting.crypto_data.key_index;
+					lrbp->data_unit_num = rq->bio->bi_iter.bi_sector >>
+							      ICE_CRYPTO_DATA_UNIT_4_KB;
+				}
+			}
+		} else {
+			lrbp->crypto_key_slot = blk_crypto_keyslot_index(rq->crypt_keyslot);
+			lrbp->data_unit_num = rq->crypt_ctx->bc_dun[0];
+		}
+	}
+}
+
 static void ufs_qcom_register_hooks(void)
 {
 	register_trace_android_vh_ufs_send_command(ufs_qcom_hook_send_command,
@@ -6213,6 +6246,8 @@ static void ufs_qcom_register_hooks(void)
 	register_trace_android_vh_ufs_check_int_errors(
 				ufs_qcom_hook_check_int_errors, NULL);
 	register_trace_android_vh_ufs_update_sdev(ufs_qcom_update_sdev, NULL);
+	register_trace_android_vh_ufs_prepare_command(
+				ufs_qcom_hook_prepare_command, NULL);
 }
 
 #ifdef CONFIG_ARM_QCOM_CPUFREQ_HW

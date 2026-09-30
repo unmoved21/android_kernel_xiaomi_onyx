@@ -26,6 +26,7 @@ struct memshare_hyp_mapping {
 };
 
 struct mem_blocks {
+	struct device *subdev;
 	/* Client Id information */
 	uint32_t client_id;
 	/* Peripheral associated with client */
@@ -61,6 +62,7 @@ struct mem_blocks {
 	uint8_t free_memory;
 	/* Need Hypervisor mapping*/
 	uint8_t hyp_mapping;
+	bool ssr_ramdump;
 };
 
 int memshare_alloc(struct device *dev,

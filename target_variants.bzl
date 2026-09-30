@@ -16,8 +16,6 @@ le_targets = [
     # keep sorted
     "kera-le",
     "qcs610",
-    "sdxkova",
-    "sdxkova.cpe.wkk",
     "sun-allyes",
     "sun-le",
 ]
