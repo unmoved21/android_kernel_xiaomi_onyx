@@ -1946,7 +1946,7 @@ static int of_qcom_slim_ngd_register(struct device *parent,
 			of_node_put(node);
 			return ret;
 		}
-		ngd->pdev->dev.of_node = node;
+		ngd->pdev->dev.of_node = of_node_get(node);
 		ctrl->ngd = ngd;
 
 		ret = platform_device_add(ngd->pdev);
@@ -1991,6 +1991,13 @@ static ssize_t debug_mask_store(struct device *device,
 
 static DEVICE_ATTR_RW(debug_mask);
 
+static void qcom_slim_ngd_unregister(struct qcom_slim_ngd_ctrl *ctrl)
+{
+	struct qcom_slim_ngd *ngd = ctrl->ngd;
+
+	platform_device_del(ngd->pdev);
+}
+
 static int qcom_slim_ngd_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -2025,6 +2032,8 @@ static int qcom_slim_ngd_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev,
 			"QMI service registration failed:%d\n", ret);
+		pm_runtime_dont_use_autosuspend(dev);
+		pm_runtime_disable(dev);
 		goto err;
 	}
 
@@ -2045,6 +2054,7 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 	struct qcom_slim_ngd_ctrl *ctrl;
 	struct resource *remote_res;
 	char ipc_err_log_name[30];
+	int irq;
 	int ret;
 	struct pdr_service *pds;
 
@@ -2058,13 +2068,14 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 	if (IS_ERR(ctrl->base))
 		return PTR_ERR(ctrl->base);
 
-	ret = platform_get_irq(pdev, 0);
-	if (ret < 0)
-		return ret;
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0)
+		return irq;
 
-	ctrl->irq = ret;
+	ctrl->irq = irq;
 	ret = devm_request_irq(dev, ctrl->irq, qcom_slim_ngd_interrupt,
-			       IRQF_TRIGGER_HIGH, "slim-ngd", ctrl);
+			       IRQF_TRIGGER_HIGH | IRQF_NO_AUTOEN,
+			       "slim-ngd", ctrl);
 	if (ret)
 		return dev_err_probe(&pdev->dev, ret, "request IRQ failed\n");
 	ctrl->irq_disabled = false;
@@ -2134,14 +2145,6 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 	}
 
 	ctrl->dev = dev;
-	ctrl->nb.notifier_call = qcom_slim_ngd_ssr_notify;
-	ctrl->notifier = qcom_register_ssr_notifier("lpass", &ctrl->nb);
-	if (IS_ERR(ctrl->notifier)) {
-		ret = PTR_ERR(ctrl->notifier);
-		dev_err(dev, "Failed to register SSR notification: %d\n", ret);
-		goto remove_ipc_sysfs;
-	}
-
 	ctrl->framer.rootfreq = SLIM_ROOT_FREQ >> 3;
 	ctrl->framer.superfreq =
 		ctrl->framer.rootfreq / SLIM_CL_PER_SUPERFRAME_DIV8;
@@ -2171,31 +2174,38 @@ static int qcom_slim_ngd_ctrl_probe(struct platform_device *pdev)
 	if (IS_ERR(ctrl->pdr)) {
 		ret = dev_err_probe(dev, PTR_ERR(ctrl->pdr),
 				    "Failed to init PDR handle ret:%d\n", ret);
-		goto err_pdr_alloc;
-	}
-
-	pds = pdr_add_lookup(ctrl->pdr, "avs/audio", "msm/adsp/audio_pd");
-	if (IS_ERR(pds) && PTR_ERR(pds) != -EALREADY) {
-		ret = dev_err_probe(dev, PTR_ERR(pds), "pdr add lookup failed ret:%d\n", ret);
-		goto err_pdr_lookup;
+		goto remove_ipc_sysfs;
 	}
 
 	ret = of_qcom_slim_ngd_register(dev, ctrl);
 	if (ret) {
 		SLIM_ERR(ctrl, "qcom_slim_ngd_register failed ret:%d\n", ret);
-		goto err_pdr_lookup;
+		goto err_pdr_release;
 	}
 
-	platform_driver_register(&qcom_slim_ngd_driver);
+	pds = pdr_add_lookup(ctrl->pdr, "avs/audio", "msm/adsp/audio_pd");
+	if (IS_ERR(pds) && PTR_ERR(pds) != -EALREADY) {
+		ret = dev_err_probe(dev, PTR_ERR(pds), "pdr add lookup failed ret:%d\n", ret);
+		goto err_unregister_ngd;
+	}
+
+	ctrl->nb.notifier_call = qcom_slim_ngd_ssr_notify;
+	ctrl->notifier = qcom_register_ssr_notifier("lpass", &ctrl->nb);
+	if (IS_ERR(ctrl->notifier)) {
+		ret = PTR_ERR(ctrl->notifier);
+		dev_err(dev, "Failed to register SSR notification: %d\n", ret);
+		goto err_unregister_ngd;
+	}
+
+	enable_irq(irq);
+
 	SLIM_INFO(ctrl, "NGD SB controller is up!\n");
 	return 0;
 
-err_pdr_lookup:
+err_unregister_ngd:
+	qcom_slim_ngd_unregister(ctrl);
+err_pdr_release:
 	pdr_handle_release(ctrl->pdr);
-
-err_pdr_alloc:
-	qcom_unregister_ssr_notifier(ctrl->notifier, &ctrl->nb);
-
 remove_ipc_sysfs:
 	if (ctrl->ipc_slimbus_log)
 		ipc_log_context_destroy(ctrl->ipc_slimbus_log);
@@ -2207,28 +2217,28 @@ remove_ipc_sysfs:
 	return ret;
 }
 
-static int qcom_slim_ngd_ctrl_remove(struct platform_device *pdev)
+static void qcom_slim_ngd_ctrl_remove(struct platform_device *pdev)
 {
 	struct qcom_slim_ngd_ctrl *ctrl = platform_get_drvdata(pdev);
 
-	platform_driver_unregister(&qcom_slim_ngd_driver);
+	pdr_handle_release(ctrl->pdr);
+	qcom_unregister_ssr_notifier(ctrl->notifier, &ctrl->nb);
+
+	qcom_slim_ngd_unregister(ctrl);
 	if (ctrl->sysfs_created)
 		sysfs_remove_file(&pdev->dev.kobj,
 				  &dev_attr_debug_mask.attr);
 
 	ipc_log_context_destroy(ctrl->ipc_slimbus_log);
 	ctrl->ipc_slimbus_log = NULL;
-
-	return 0;
 }
 
-static int qcom_slim_ngd_remove(struct platform_device *pdev)
+static void qcom_slim_ngd_remove(struct platform_device *pdev)
 {
 	struct qcom_slim_ngd_ctrl *ctrl = platform_get_drvdata(pdev);
 
+	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
-	pdr_handle_release(ctrl->pdr);
-	qcom_unregister_ssr_notifier(ctrl->notifier, &ctrl->nb);
 	slim_unregister_controller(&ctrl->ctrl);
 	qcom_slim_ngd_exit_dma(ctrl);
 	qcom_slim_ngd_qmi_svc_event_deinit(&ctrl->qmi);
@@ -2237,7 +2247,6 @@ static int qcom_slim_ngd_remove(struct platform_device *pdev)
 
 	kfree(ctrl->ngd);
 	ctrl->ngd = NULL;
-	return 0;
 }
 
 static int __maybe_unused qcom_slim_ngd_runtime_idle(struct device *dev)
@@ -2255,7 +2264,6 @@ static int __maybe_unused qcom_slim_ngd_runtime_suspend(struct device *dev)
 {
 	struct qcom_slim_ngd_ctrl *ctrl = dev_get_drvdata(dev);
 	struct qcom_slim_ngd *ngd = ctrl->ngd;
-	unsigned long flags;
 	int ret = 0;
 
 	SLIM_INFO(ctrl, "Slim runtime suspend\n");
@@ -2270,29 +2278,7 @@ static int __maybe_unused qcom_slim_ngd_runtime_suspend(struct device *dev)
 		mutex_unlock(&ctrl->suspend_resume_lock);
 		return 0;
 	}
-
-	/* Acquire tx_lock to prevent new messages during DMA exit */
-	if (!mutex_trylock(&ctrl->tx_lock)) {
-		mutex_unlock(&ctrl->suspend_resume_lock);
-		SLIM_INFO(ctrl, "TX in progress, deferring suspend\n");
-		return -EBUSY;
-	}
-
-	/* Check for pending TX DMA descriptors */
-	spin_lock_irqsave(&ctrl->tx_buf_lock, flags);
-	if (ctrl->tx_head != ctrl->tx_tail) {
-		spin_unlock_irqrestore(&ctrl->tx_buf_lock, flags);
-		mutex_unlock(&ctrl->tx_lock);
-		mutex_unlock(&ctrl->suspend_resume_lock);
-		SLIM_INFO(ctrl, "TX DMA pending (head:%d tail:%d), deferring suspend\n",
-			  ctrl->tx_head, ctrl->tx_tail);
-		return -EBUSY;
-	}
-	spin_unlock_irqrestore(&ctrl->tx_buf_lock, flags);
-
 	qcom_slim_ngd_exit_dma(ctrl);
-
-	mutex_unlock(&ctrl->tx_lock);
 
 	qcom_slim_ngd_disable_irq(ctrl);
 	writel_relaxed(0x0, ngd->base + NGD_INT_EN);
@@ -2322,7 +2308,7 @@ static const struct dev_pm_ops qcom_slim_ngd_dev_pm_ops = {
 
 static struct platform_driver qcom_slim_ngd_ctrl_driver = {
 	.probe = qcom_slim_ngd_ctrl_probe,
-	.remove = qcom_slim_ngd_ctrl_remove,
+	.remove_new = qcom_slim_ngd_ctrl_remove,
 	.driver	= {
 		.name = "qcom,slim-ngd-ctrl",
 		.of_match_table = qcom_slim_ngd_dt_match,
@@ -2331,13 +2317,35 @@ static struct platform_driver qcom_slim_ngd_ctrl_driver = {
 
 static struct platform_driver qcom_slim_ngd_driver = {
 	.probe = qcom_slim_ngd_probe,
-	.remove = qcom_slim_ngd_remove,
+	.remove_new = qcom_slim_ngd_remove,
 	.driver	= {
 		.name = QCOM_SLIM_NGD_DRV_NAME,
 		.pm = &qcom_slim_ngd_dev_pm_ops,
 	},
 };
 
-module_platform_driver(qcom_slim_ngd_ctrl_driver);
+static int qcom_slim_ngd_init(void)
+{
+	int ret;
+
+	ret = platform_driver_register(&qcom_slim_ngd_driver);
+	if (ret)
+		return ret;
+
+	ret = platform_driver_register(&qcom_slim_ngd_ctrl_driver);
+	if (ret)
+		platform_driver_unregister(&qcom_slim_ngd_driver);
+
+	return ret;
+}
+
+static void qcom_slim_ngd_exit(void)
+{
+	platform_driver_unregister(&qcom_slim_ngd_ctrl_driver);
+	platform_driver_unregister(&qcom_slim_ngd_driver);
+}
+
+module_init(qcom_slim_ngd_init);
+module_exit(qcom_slim_ngd_exit);
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("Qualcomm SLIMBus NGD controller");
