@@ -172,6 +172,7 @@ def _define_kernel_build(
         kmi_symbol_list = "android/abi_gki_aarch64_qcom" if define_abi_targets else None,
         additional_kmi_symbol_lists = ["{}_all_kmi_symbol_lists".format(base_kernel)] if define_abi_targets else None,
         collect_unstripped_modules = define_abi_targets,
+        strip_modules = True,
         visibility = ["//visibility:public"],
     )
 
@@ -461,10 +462,10 @@ def define_msm_la(
     target = msm_target.replace("_", "-") + "_" + variant.replace("_", "-")
 
     if variant == "consolidate":
-        base_kernel = "//common:kernel_aarch64_consolidate"
+        base_kernel = "//vendor/qcom/kernel:kernel_aarch64_consolidate"
         define_abi_targets = False
     else:
-        base_kernel = "//common:kernel_aarch64"
+        base_kernel = "//vendor/qcom/kernel:kernel_aarch64"
         define_abi_targets = True
 
     dtb_list = get_dtb_list(msm_target)
